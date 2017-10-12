@@ -15,13 +15,10 @@ import android.view.Window;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.Toast;
-
 import com.bumptech.glide.Glide;
 import com.youth.banner.Banner;
-
 import java.util.ArrayList;
 import java.util.List;
-
 import wiar.bupt.com.qoedemo.utils.Util;
 import wiar.bupt.com.qoedemo.utils.Video;
 import wiar.bupt.com.qoedemo.utils.VideoAdapter;
@@ -80,7 +77,6 @@ public class ListActivity extends Activity {
         });
     }
 
-
     private void initTypeVideos() {
         //分类视频初始化
         Video v1 = new Video(first(R.drawable.shijiaqiu), first(R.drawable.suya), "体育",
@@ -104,7 +100,6 @@ public class ListActivity extends Activity {
                 new String[]{"http://10.103.93.23:8080/qoeResource/duolaameng.mp4", "http://10.103.93.23:8080/qoeResource/kenan.mp4"}
         );
         videoList.add(v4);
-
     }
 
 

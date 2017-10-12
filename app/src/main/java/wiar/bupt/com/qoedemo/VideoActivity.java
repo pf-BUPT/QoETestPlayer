@@ -274,7 +274,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         builder.setPositiveButton("确定", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                mVideoView.start();
+                //mVideoView.start();
                 //获取用户主观Mos
                 testParamsObj.setMos_sub(Double.parseDouble(ratingBar.getRating() + ""));
                 testParamsObj.setTestTimeStamp(System.currentTimeMillis());
@@ -299,14 +299,14 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
                 };
                 timer = new Timer();
                 //重新启动timer
-                timer.schedule(timerTask, 10000);//开始
+                timer.schedule(timerTask, 5000);//开始
             }
         });
 
         builder.setNegativeButton("取消", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                mVideoView.start();
+                //mVideoView.start();
                 timerTask = new TimerTask() {
                     @Override
                     public void run() {
@@ -323,7 +323,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
                 };
                 timer = new Timer();
                 //重启timer
-                timer.schedule(timerTask, 10000);//开始
+                timer.schedule(timerTask, 5000);//开始
             }
         });
         alertDialog = builder.create();
@@ -331,7 +331,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         //设置定时器，当视频缓冲结束时，开始定时任务
         if (bufferEnd) {
             //如果已经缓冲完
-            timer.schedule(timerTask, 10000);//开始
+            timer.schedule(timerTask, 5000);//开始
             Log.d(TAG, "1——开始 5s 定时任务！！！");
         }
         else {//若还未缓冲完,每过一秒钟判断一次是否缓冲完了
@@ -340,7 +340,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             final TimerTask tt2 = new TimerTask() {
                 @Override
                 public void run() {
-                    if(bufferEnd){
+                    if(bufferEnd && timer!=null){
                         timer.schedule(timerTask, 5000);//开始
                         Log.d(TAG, "2——开始定时任务:若还未缓冲完,每过一秒钟判断一次是否缓冲完了");
                         t2.cancel();
@@ -354,7 +354,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         builder_back = new AlertDialog.Builder(this);
         builder_back.setTitle("结束测试");
         builder_back.setView(backDialogView);//这里添加上这个view
-        builder_back.setPositiveButton("是", new DialogInterface.OnClickListener() {
+        builder_back.setPositiveButton("确定", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 //用户给出的总体评价
@@ -370,6 +370,12 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             }
         });
 
+        builder_back.setNegativeButton("取消", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                finish();
+            }
+        });
     }
 
     class MyReceiver extends BroadcastReceiver {
@@ -382,7 +388,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             for (long time:stopTimeList ) {
                 stopTimeAvg += time;
             }
-            stopTimeAvg =stopTimeAvg/stopNum;
+
 
             //设置paramsToPost
             paramsToPost.setMonitor(monitorList);
