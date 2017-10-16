@@ -17,11 +17,11 @@ public class ParamsToPost {
     private int videoLength;//•	视频长度/s
     private long initTime;//初始缓冲时间/ms
     private long videoBufferStart = -1;
-    private List test;//
-    private List monitor;
     private int stopNum;
     private long stopTimeAvg;
     private double mosOverall;
+    private List test;//
+    private List monitor;
 
     public double getMosOverall() {
         return mosOverall;

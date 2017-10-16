@@ -154,7 +154,7 @@ public class VideoviewForQoe extends VideoView {
         //重新获取消息时延
         getMessageDelay(getVideoURI());//开启ping线程，当正确ping通后，messagedelay参数会被修改
         initTime = super.getiniTime();
-        initBuffer = super.getBufferSize() * 8 / videoStreamBitRate / 1000;
+        initBuffer = super.getBufferSize() * 8 / videoStreamBitRate / 1024;
         DecimalFormat df2 = new DecimalFormat("0.00");
         initBuffer = Double.parseDouble(df2.format(initBuffer));
         DecimalFormat df1 = new DecimalFormat("0.0");
@@ -200,7 +200,7 @@ public class VideoviewForQoe extends VideoView {
 
     //获取MAC
     public String getMac() {
-        String macSerial = null;
+        String macSerial = "";
         String str = "";
         try {
             Process pp = Runtime.getRuntime().exec(
@@ -219,7 +219,9 @@ public class VideoviewForQoe extends VideoView {
             ex.printStackTrace();
         }
         Log.d(TAG,"macSerial"+macSerial);
-        macSerial.replace(":","");
+        if(macSerial!=null){
+            macSerial.replace(":","");
+        }
         Log.d(TAG,"replace 之后 ：macSerial"+macSerial);
         return macSerial;
     }

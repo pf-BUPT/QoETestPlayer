@@ -256,9 +256,14 @@ public class VideoView extends SurfaceView implements MediaController.MediaPlaye
         return initime;
     }
 
+    public MediaPlayer getmMediaPlayer() {
+        return mMediaPlayer;
+    }
+
     public long getvideoBufferStart(){
         return videoBufferStart;
     }
+
     private OnInfoListener mInfoListener = new OnInfoListener() {
         @Override
 

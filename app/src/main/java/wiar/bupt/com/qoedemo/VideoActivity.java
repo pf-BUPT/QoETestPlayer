@@ -35,6 +35,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import io.vov.vitamio.MediaPlayer;
+import io.vov.vitamio.Metadata;
 import io.vov.vitamio.Vitamio;
 import io.vov.vitamio.paramsEntity.MonitorParams;
 import io.vov.vitamio.paramsEntity.ParamsToPost;
@@ -44,15 +45,16 @@ import io.vov.vitamio.widget.VideoviewForQoe;
 import wiar.bupt.com.qoedemo.service.QOEservice;
 
 public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnInfoListener, MediaPlayer.OnBufferingUpdateListener {
-    MyReceiver receiver=new MyReceiver();
-    private static final String TAG="VideoActivity";
+    MyReceiver receiver = new MyReceiver();
+    private static final String TAG = "VideoActivity";
     private boolean bufferEnd = false;
     private boolean isPost = false;
+    private boolean isMetaPrepared = false;
     private String videoUri = "";
     private Uri uri;
-    private Double videoStreamBitRate=0.0;
-    private int videoLength=0;
-    private String mimeType="";
+    private Double videoStreamBitRate = 0.0;
+    private int videoLength = 0;
+    private String mimeType = "";
     int stopNum = 0;
     long stopTimeAvg = 0;
     double mosOverall = 0;
@@ -70,10 +72,10 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
     private List<TestParams> testList = new ArrayList<>();
     private ParamsToPost paramsToPost = new ParamsToPost();
     private String jsonString = "";
-    private String name="";
+    private String name = "";
     private MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
-    DecimalFormat df1 = new DecimalFormat("0.0");
+    private DecimalFormat df1 = new DecimalFormat("0.0");
 
     TestParams testParamsObj = null;
     AlertDialog.Builder builder = null;
@@ -124,7 +126,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
     //广播的定时器
     Timer broadcasttimer = new Timer();
     TimerTask broadcastttask;
-    final Intent broadCastIntent=new Intent("monitorService");
+    final Intent broadCastIntent = new Intent("monitorService");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -141,78 +143,113 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         Bundle bundle = this.getIntent().getExtras();
         //获取viewList活动传来的参数:url,长度，码率
         videoUri = bundle.getString("uri");
-        name=bundle.getString("videoname");
-        try{
-            retriever.setDataSource(videoUri, new HashMap<String, String>());
-            videoStreamBitRate = Double.parseDouble(df1.format(Double.parseDouble(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_BITRATE)) / 1000));
-            videoLength = Integer.parseInt(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)) / 1000;
-            mimeType = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE);
-        }catch (Exception e){
-            new AlertDialog.Builder(VideoActivity.this)
-                    .setTitle("抱歉，视频初始化失败")
-                    .setIcon(R.drawable.emoji)
-                    .setPositiveButton("确定", new DialogInterface.OnClickListener() {
-                        @Override
-                        public void onClick(DialogInterface dialog, int which) {
-                            finish();
-                        }
-                    })
-                    .show();
-        }
+        name = bundle.getString("videoname");
+
         initView();
         initData();//初始化vitamio所需参数
         //
-        mVideoView.setVideoStreamBitRate(videoStreamBitRate);//设置已经获取的参数：码率
-        mVideoView.setMimeType(mimeType);
-        mVideoView.setVideoLength(videoLength);
-
         //启动服务
-        Intent intent=new Intent(this,QOEservice.class);
+        Log.d(TAG, "启动QOEservice广播服务,每一秒发送一次广播1");
+        Intent intent = new Intent(this, QOEservice.class);
         startService(intent);
         //准备向monitor服务发送广播
-        broadCastIntent.putExtra("QoeOrder",1);
+        broadCastIntent.putExtra("QoeOrder", 1);
         broadcastttask = new TimerTask() {
             @Override
             public void run() {
-                broadCastIntent.putExtra("BufferPercentage",mVideoView.getBufferPercentage());
+                broadCastIntent.putExtra("BufferPercentage", mVideoView.getBufferPercentage());
                 long currenttime = mVideoView.getCurrentPosition();
-                broadCastIntent.putExtra("CurrentTime",currenttime);
+                broadCastIntent.putExtra("CurrentTime", currenttime);
                 sendBroadcast(broadCastIntent);
             }
         };
         //每一秒发送一次广播1
-        broadcasttimer.schedule(broadcastttask,0,1000);
+        broadcasttimer.schedule(broadcastttask, 0, 1000);
         //注册广播接收器,接受monitor服务传回的list数据
-        IntentFilter filter=new IntentFilter();
+        Log.d(TAG, "注册广播接收器,接受monitor服务传回的list数据");
+        IntentFilter filter = new IntentFilter();
         filter.addAction("monitorParam from monitorService");
-        VideoActivity.this.registerReceiver(receiver,filter);
+        VideoActivity.this.registerReceiver(receiver, filter);
     }
 
 
     //初始化控件
     private void initView() {
+        Log.d(TAG, "initView!");
         mVideoView = (VideoviewForQoe) findViewById(R.id.buffer);
         mCustomMediaController = new CustomMediaController(this, mVideoView, this);
         mCustomMediaController.setVideoName(name);
         pb = (ProgressBar) findViewById(R.id.probar);
         VideoActivity.this.setFinishOnTouchOutside(false);
+
+        //获取自定义dialog view中的控件
+        mosview = (RelativeLayout) getLayoutInflater().inflate(R.layout.mosdialog, null);
+        backDialogView = (RelativeLayout) getLayoutInflater().inflate(R.layout.backdialogview, null);
+        backDialogText = (TextView) backDialogView.findViewById(R.id.backDialogText);
+        ratingBar = (MyRatingBar) mosview.findViewById(R.id.ratingbar);
+        ratingBar_back = (MyRatingBar) backDialogView.findViewById(R.id.ratingbar_back);
+
     }
+
     //初始化数据
     private void initData() {
+        Log.d(TAG, "initData!");
+        Log.d(TAG, "设置mVideoView播放器");
         uri = Uri.parse(videoUri);
         //设置mVideoView播放器
         mVideoView.setVideoURI(uri);//设置视频播放地址
-
         mCustomMediaController.show(5000);
         mVideoView.setMediaController(mCustomMediaController);
         mVideoView.setVideoQuality(MediaPlayer.VIDEOQUALITY_HIGH);//高画质
         mVideoView.requestFocus();
+
         mVideoView.setOnInfoListener(this);
         mVideoView.setOnBufferingUpdateListener(this);
         mVideoView.setOnPreparedListener(new MediaPlayer.OnPreparedListener() {
             @Override
             public void onPrepared(MediaPlayer mediaPlayer) {
+                Metadata metadata = null;
+                if(mediaPlayer != null){
+                    metadata = mediaPlayer.getMetadata();
+                }else{
+                    Log.e(TAG,"mediaPlayer == null !");
+                }
+                if(metadata != null){
+                    videoStreamBitRate = Double.parseDouble(df1.format(Double.parseDouble("" + metadata.getInt(17))/1024));
+                    videoLength = (int) (metadata.getLong(10) / 1000);
+                    mimeType = metadata.getString(22);
+                    Log.d(TAG, "videoStreamBitRate: " + videoStreamBitRate);
+                    Log.d(TAG, "videoLength: " + videoLength);
+                    Log.d(TAG, "mimeType: " + mimeType);
+                }else{
+                    Log.e(TAG,"metadata == null !");
+                }
+
+                mVideoView.setVideoStreamBitRate(videoStreamBitRate);//设置已经获取的参数：码率
+                mVideoView.setMimeType(mimeType);
+                mVideoView.setVideoLength(videoLength);
+
                 mediaPlayer.setPlaybackSpeed(1.0f);
+//                new AlertDialog.Builder(VideoActivity.this)
+//                        .setTitle("OnPrepared")
+//                        .setPositiveButton("确定", new DialogInterface.OnClickListener() {
+//                            @Override
+//                            public void onClick(DialogInterface dialog, int which) {
+//                                finish();
+//                            }
+//                        })
+//                        .show();
+//                try {
+//                    while (!isMetaPrepared) {
+//                        Log.d(TAG, "元数据还未获取完毕，延迟100ms");
+//                        wait(100);
+//                    }
+//                    Log.d(TAG, "元数据获取完毕，开始播放");
+//                    mediaPlayer.setPlaybackSpeed(1.0f);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
+
             }
         });
         mVideoView.setOnErrorListener(new MediaPlayer.OnErrorListener() {
@@ -253,13 +290,8 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
 //                isPost = true;//已经发送了通知2
             }
         });
-        //获取自定义dialog view中的控件
-        mosview = (RelativeLayout) getLayoutInflater().inflate(R.layout.mosdialog, null);
-        backDialogView = (RelativeLayout) getLayoutInflater().inflate(R.layout.backdialogview, null);
-        backDialogText = (TextView)backDialogView.findViewById(R.id.backDialogText) ;
-        ratingBar = (MyRatingBar) mosview.findViewById(R.id.ratingbar);
-        ratingBar_back = (MyRatingBar) backDialogView.findViewById(R.id.ratingbar_back);
 
+        Log.d(TAG, "设置对话框");
         //设置dialog
         builder = new AlertDialog.Builder(this);
         builder.setTitle("QoE评价");
@@ -328,27 +360,6 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         });
         alertDialog = builder.create();
         alertDialog.setCanceledOnTouchOutside(false);
-        //设置定时器，当视频缓冲结束时，开始定时任务
-        if (bufferEnd) {
-            //如果已经缓冲完
-            timer.schedule(timerTask, 5000);//开始
-            Log.d(TAG, "1——开始 5s 定时任务！！！");
-        }
-        else {//若还未缓冲完,每过一秒钟判断一次是否缓冲完了
-            Log.d(TAG,"还没缓冲完");
-            final Timer t2 = new Timer();
-            final TimerTask tt2 = new TimerTask() {
-                @Override
-                public void run() {
-                    if(bufferEnd && timer!=null){
-                        timer.schedule(timerTask, 5000);//开始
-                        Log.d(TAG, "2——开始定时任务:若还未缓冲完,每过一秒钟判断一次是否缓冲完了");
-                        t2.cancel();
-                    }
-                }
-            };
-            t2.schedule(tt2,0,1000);//每一秒执行一次
-        }
 
         //设置点击返回按钮后的alertDialog
         builder_back = new AlertDialog.Builder(this);
@@ -359,11 +370,11 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             public void onClick(DialogInterface dialog, int which) {
                 //用户给出的总体评价
                 mosOverall = Double.parseDouble(ratingBar_back.getRating() + "");
-                Log.d(TAG,"mosOverall : "+mosOverall);
+                Log.d(TAG, "mosOverall : " + mosOverall);
                 //发送通知2
-                if(!isPost){
-                    Intent broadCastIntent_2=new Intent("monitorService");
-                    broadCastIntent_2.putExtra("QoeOrder",2);
+                if (!isPost) {
+                    Intent broadCastIntent_2 = new Intent("monitorService");
+                    broadCastIntent_2.putExtra("QoeOrder", 2);
                     sendBroadcast(broadCastIntent_2);
                     isPost = true;
                 }
@@ -376,19 +387,40 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
                 finish();
             }
         });
+
+        //设置定时器，当视频缓冲结束时，开始定时任务
+        Log.d(TAG, "设置定时器，当视频缓冲结束时，开始定时弹窗任务");
+        if (bufferEnd) {
+            //如果已经缓冲完
+            timer.schedule(timerTask, 5000);//开始
+            Log.d(TAG, "已经缓冲完——开始 5s 定时任务！！！");
+        } else {//若还未缓冲完,每过一秒钟判断一次是否缓冲完了
+            Log.d(TAG, "还没缓冲完,当视频缓冲结束时，开始定时弹窗任务");
+            final Timer t2 = new Timer();
+            final TimerTask tt2 = new TimerTask() {
+                @Override
+                public void run() {
+                    if (bufferEnd && timer != null) {
+                        timer.schedule(timerTask, 5000);//开始
+                        Log.d(TAG, "开始定时弹窗任务:若还未缓冲完,每过一秒钟判断一次是否缓冲完了");
+                        t2.cancel();
+                    }
+                }
+            };
+            t2.schedule(tt2, 0, 1000);//每一秒执行一次
+        }
     }
 
     class MyReceiver extends BroadcastReceiver {
         @Override
         public void onReceive(Context context, Intent intent) {
             //接收monitor服务传回的monitorList
-            monitorList=(List<MonitorParams>)intent.getSerializableExtra("monitorList");
+            monitorList = (List<MonitorParams>) intent.getSerializableExtra("monitorList");
             //计算此次播放视频的中断次数和平均中断时间
             stopNum = stopTimeList.size();
-            for (long time:stopTimeList ) {
+            for (long time : stopTimeList) {
                 stopTimeAvg += time;
             }
-
 
             //设置paramsToPost
             paramsToPost.setMonitor(monitorList);
@@ -409,13 +441,14 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             //dopost
             Gson gson = new Gson();
             jsonString = gson.toJson(paramsToPost);
-            Log.d(TAG,"最终生成的json字符串：  "+jsonString);
-            backDialogText.setText(" 感谢您的测试，是否上传？\njson长度："+jsonString.length());
+            Log.d(TAG, "最终生成的json字符串：  " + jsonString);
+            backDialogText.setText(" 感谢您的测试，是否上传？\njson长度：" + jsonString.length());
             mVideoView.postMetadata(jsonString);
             //接受到monitor参数并且post后，backmonitor_text上更新显示
             finish();
         }
     }
+
     @Override
     public void onBackPressed() {
         //停止 5s 定时任务
@@ -431,14 +464,14 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             alertDialog = null;
         }
         //停止 1s 广播
-        if(broadcasttimer!=null){
+        if (broadcasttimer != null) {
             broadcasttimer.cancel();
         }
-        if(broadcastttask!=null){
+        if (broadcastttask != null) {
             broadcastttask.cancel();
         }
         //显示提示框
-        if( backDialogView.getParent() != null){
+        if (backDialogView.getParent() != null) {
             ((ViewGroup) backDialogView.getParent()).removeView(backDialogView);
         }
         alertDialog_back = builder_back.create();
@@ -446,36 +479,38 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         alertDialog_back.show();
 
     }
-    long bufferStartTime ;
-    long bufferEndTime ;
+
+    long bufferStartTime;
+    long bufferEndTime;
+
     @Override
     public boolean onInfo(MediaPlayer mp, int what, int extra) {
         switch (what) {
-            case MediaPlayer. MEDIA_ERROR_UNKNOWN:
-                Toast.makeText(VideoActivity.this,"无法播放",Toast.LENGTH_SHORT).show();
+            case MediaPlayer.MEDIA_ERROR_UNKNOWN:
+                Toast.makeText(VideoActivity.this, "无法播放", Toast.LENGTH_SHORT).show();
             case MediaPlayer.MEDIA_ERROR_NOT_VALID_FOR_PROGRESSIVE_PLAYBACK:
-                Toast.makeText(VideoActivity.this,"网络不给力",Toast.LENGTH_SHORT).show();
+                Toast.makeText(VideoActivity.this, "网络不给力", Toast.LENGTH_SHORT).show();
             case MediaPlayer.MEDIA_INFO_BUFFERING_START:
                 bufferStartTime = System.currentTimeMillis();
-                Log.d(TAG,"缓冲开始,bufferStartTime = "+bufferStartTime);
+                Log.d(TAG, "缓冲开始,bufferStartTime = " + bufferStartTime);
 
                 if (mVideoView.isPlaying()) {
                     mVideoView.pause();
-                    //Log.e(TAG, "           缓冲开始！！！！！！！缓冲百分比："+mVideoView.getBufferPercentage());
+                    //Log.e(TAG, "缓冲开始！！！！！！！缓冲百分比："+mVideoView.getBufferPercentage());
                     pb.setVisibility(View.VISIBLE);//显示加载
                 }
                 break;
             case MediaPlayer.MEDIA_INFO_BUFFERING_END:
-                synchronized(this){
-                mVideoView.start();
-                pb.setVisibility(View.GONE);
+                synchronized (this) {
+                    mVideoView.start();
+                    pb.setVisibility(View.GONE);
                 }
                 //Log.e(TAG, "缓冲结束！！！！！！！缓冲百分比："+mVideoView.getBufferPercentage());
                 //开启定时服务
                 bufferEnd = true;
                 bufferEndTime = System.currentTimeMillis();
-                stopTimeList.add(bufferEndTime-bufferStartTime);
-                Log.d(TAG,"stopTimeList中添加记录，bufferEndTime ="+bufferEndTime+" , bufferStartTime = "+bufferStartTime+",stopTime ="+(bufferEndTime-bufferStartTime));
+                stopTimeList.add(bufferEndTime - bufferStartTime);
+                Log.d(TAG, "stopTimeList中添加记录，bufferEndTime =" + bufferEndTime + " , bufferStartTime = " + bufferStartTime + ",stopTime =" + (bufferEndTime - bufferStartTime));
                 break;
             case MediaPlayer.MEDIA_INFO_DOWNLOAD_RATE_CHANGED:
                 //extra:下载速度
@@ -483,6 +518,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         }
         return true;
     }
+
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         //屏幕切换时，设置全屏
@@ -491,6 +527,7 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
         }
         super.onConfigurationChanged(newConfig);
     }
+
     @Override
     protected void onStop() {
         //停止 5s 定时任务
@@ -506,19 +543,21 @@ public class VideoActivity extends AppCompatActivity implements MediaPlayer.OnIn
             alertDialog = null;
         }
         //停止 1s 广播
-        if(broadcasttimer!=null){
+        if (broadcasttimer != null) {
             broadcasttimer.cancel();
         }
-        if(broadcastttask!=null){
+        if (broadcastttask != null) {
             broadcastttask.cancel();
         }
         super.onStop();
     }
+
     @Override
     protected void onDestroy() {
         unregisterReceiver(receiver);
         super.onDestroy();
     }
+
     @Override
     public void onBufferingUpdate(MediaPlayer mp, int percent) {
         //Log.e(TAG,"bufferPercentage: "+ percent);
